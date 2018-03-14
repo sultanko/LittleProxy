@@ -117,7 +117,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private final int maxHeaderSize;
     private final int maxChunkSize;
     private final boolean allowRequestsToOriginServer;
-    private final boolean mimicServerHandshake;
+    private volatile boolean mimicServerHandshake;
 
     /**
      * The alias or pseudonym for this proxy, used when adding the Via header.
@@ -427,6 +427,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     @Override
     public void abort() {
         doStop(false);
+    }
+
+    @Override
+    public void setMimicHandshake(boolean value) {
+        this.mimicServerHandshake = value;
     }
 
     /**

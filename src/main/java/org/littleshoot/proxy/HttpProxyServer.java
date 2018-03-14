@@ -49,6 +49,8 @@ public interface HttpProxyServer {
      */
     void abort();
 
+    void setMimicHandshake(boolean value);
+
     /**
      * Return the address on which this proxy is listening.
      * 
