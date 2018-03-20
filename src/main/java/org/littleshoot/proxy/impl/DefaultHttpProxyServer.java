@@ -8,7 +8,6 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.ChannelGroupFuture;
 import io.netty.channel.group.DefaultChannelGroup;
@@ -132,23 +131,18 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     /**
      * Track all ActivityTrackers for tracking proxying activity.
      */
-    private final Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<ActivityTracker>();
+    private final Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<>();
 
     /**
      * Keep track of all channels created by this proxy server for later shutdown when the proxy is stopped.
      */
-    private final ChannelGroup allChannels = new DefaultChannelGroup("HTTP-Proxy-Server", GlobalEventExecutor.INSTANCE);
+    private ChannelGroup allChannels = new DefaultChannelGroup("HTTP-Proxy-Server", GlobalEventExecutor.INSTANCE);
 
     /**
      * JVM shutdown hook to shutdown this proxy server. Declared as a class-level variable to allow removing the shutdown hook when the
      * proxy server is stopped normally.
      */
-    private final Thread jvmShutdownHook = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            abort();
-        }
-    }, "LittleProxy-JVM-shutdown-hook");
+    private final Thread jvmShutdownHook = new Thread(this::abort, "LittleProxy-JVM-shutdown-hook");
 
     /**
      * Bootstrap a new {@link DefaultHttpProxyServer} starting from scratch.
@@ -523,24 +517,19 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 serverGroup.getClientToProxyWorkerPoolForTransport(transportProtocol));
 
         ChannelInitializer<Channel> initializer = new ChannelInitializer<Channel>() {
-            protected void initChannel(Channel ch) throws Exception {
+            protected void initChannel(Channel ch) {
                 new ClientToProxyConnection(
                         DefaultHttpProxyServer.this,
                         sslEngineSource,
                         authenticateSslClients,
                         ch.pipeline(),
                         globalTrafficShapingHandler);
-            };
+            }
         };
         switch (transportProtocol) {
             case TCP:
                 LOG.info("Proxy listening with TCP transport");
-                serverBootstrap.channelFactory(new ChannelFactory<ServerChannel>() {
-                    @Override
-                    public ServerChannel newChannel() {
-                        return new NioServerSocketChannel();
-                    }
-                });
+                serverBootstrap.channelFactory(NioServerSocketChannel::new);
                 break;
             case UDT:
                 LOG.info("Proxy listening with UDT transport");
@@ -553,13 +542,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         }
         serverBootstrap.childHandler(initializer);
         ChannelFuture future = serverBootstrap.bind(requestedAddress)
-                .addListener(new ChannelFutureListener() {
-                    @Override
-                    public void operationComplete(ChannelFuture future)
-                            throws Exception {
-                        if (future.isSuccess()) {
-                            registerChannel(future.channel());
-                        }
+                .addListener((ChannelFutureListener) future1 -> {
+                    if (future1.isSuccess()) {
+                        registerChannel(future1.channel());
                     }
                 }).awaitUninterruptibly();
 
@@ -623,7 +608,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private HttpFiltersSource filtersSource = new HttpFiltersSourceAdapter();
         private boolean transparent = false;
         private int idleConnectionTimeout = 70;
-        private Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<ActivityTracker>();
+        private Collection<ActivityTracker> activityTrackers = new ConcurrentLinkedQueue<>();
         private int connectTimeout = 40000;
         private HostResolver serverResolver = new DefaultHostResolver();
         private long readThrottleBytesPerSecond;

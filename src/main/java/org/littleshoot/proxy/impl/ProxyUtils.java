@@ -265,8 +265,10 @@ public class ProxyUtils {
         final List<String> vias;
         if (httpMessage.headers().contains(HttpHeaders.Names.VIA)) {
             List<String> existingViaHeaders = httpMessage.headers().getAll(HttpHeaders.Names.VIA);
-            vias = new ArrayList<String>(existingViaHeaders);
-            vias.add(newViaHeader);
+            vias = new ArrayList<>(existingViaHeaders);
+            if (!existingViaHeaders.contains(newViaHeader)) {
+                vias.add(newViaHeader);
+            }
         } else {
             vias = Collections.singletonList(newViaHeader);
         }

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * processing, and so on.
  */
 class ConnectionFlow {
-    private Queue<ConnectionFlowStep> steps = new ConcurrentLinkedQueue<ConnectionFlowStep>();
+    private Queue<ConnectionFlowStep> steps = new ConcurrentLinkedQueue<>();
 
     private final ClientToProxyConnection clientConnection;
     private final ProxyToServerConnection serverConnection;
@@ -118,12 +118,7 @@ class ConnectionFlow {
                 || currentStep.shouldSuppressInitialRequest();
 
         if (currentStep.shouldExecuteOnEventLoop()) {
-            connection.ctx.executor().submit(new Runnable() {
-                @Override
-                public void run() {
-                    doProcessCurrentStep(LOG);
-                }
-            });
+            connection.ctx.executor().submit(() -> doProcessCurrentStep(LOG));
         } else {
             doProcessCurrentStep(LOG);
         }
@@ -138,22 +133,18 @@ class ConnectionFlow {
     @SuppressWarnings("unchecked")
     private void doProcessCurrentStep(final ProxyConnectionLogger LOG) {
         currentStep.execute().addListener(
-                new GenericFutureListener<Future<?>>() {
-                    public void operationComplete(
-                            io.netty.util.concurrent.Future<?> future)
-                            throws Exception {
-                        synchronized (connectLock) {
-                            if (future.isSuccess()) {
-                                LOG.debug("ConnectionFlowStep succeeded");
-                                currentStep
-                                        .onSuccess(ConnectionFlow.this);
-                            } else {
-                                LOG.debug("ConnectionFlowStep failed",
-                                        future.cause());
-                                fail(future.cause());
-                            }
+                future -> {
+                    synchronized (connectLock) {
+                        if (future.isSuccess()) {
+                            LOG.debug("ConnectionFlowStep succeeded");
+                            currentStep
+                                    .onSuccess(ConnectionFlow.this);
+                        } else {
+                            LOG.debug("ConnectionFlowStep failed",
+                                    future.cause());
+                            fail(future.cause());
                         }
-                    };
+                    }
                 });
     }
 
@@ -182,13 +173,7 @@ class ConnectionFlow {
         Future<Void> disconnect = serverConnection.disconnect();
         if(disconnect != null) {
             disconnect.addListener(
-                    new GenericFutureListener() {
-                        @Override
-                        public void operationComplete(Future future)
-                                throws Exception {
-                            checkForRetry(lastStateBeforeFailure, cause);
-                        }
-                    });
+                    (GenericFutureListener) future -> checkForRetry(lastStateBeforeFailure, cause));
         } else {
             checkForRetry(lastStateBeforeFailure, cause);
         }
